@@ -1,0 +1,22 @@
+name: hyrlink-gemma4-local
+version: v1
+
+model:
+  base_path: 'D:\models'
+  assistant_path: 'D:\models\gemma-4-transformers-gemma-4-e4b-it-assistant-v1'
+  framework: transformers
+  device_map: auto
+
+quantization:
+  enabled: true
+  backend: bitsandbytes
+  load_in_4bit: true
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: float16
+
+generation:
+  max_new_tokens: 256
+  temperature: 0.2
+  top_p: 0.9
+  top_k: 40
