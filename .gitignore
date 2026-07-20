@@ -1,0 +1,23 @@
+# Python virtual environment
+.venv/
+env/
+venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Fine-tuning large datasets & model checkpoints (keep code only)
+Finetune/training_data.jsonl
+Finetune/resume_dataset.jsonl
+Finetune/output_adapter/
+Finetune/*.csv
+Finetune/*.zip
+Finetune/*.parquet
+Finetune/*.xlsx
+
+# Runtime data & logs
+data/memory_bank.json
+*.log

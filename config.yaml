@@ -2,8 +2,9 @@ name: hyrlink-gemma4-local
 version: v1
 
 model:
-  base_path: 'D:\models'
-  assistant_path: 'D:\models\gemma-4-transformers-gemma-4-e4b-it-assistant-v1'
+  base_path: 'd:/models'
+  assistant_path: 'd:/models/gemma-4-transformers-gemma-4-e4b-it-assistant-v1'
+  adapter_path: null
   framework: transformers
   device_map: auto
 
@@ -20,3 +21,8 @@ generation:
   temperature: 0.2
   top_p: 0.9
   top_k: 40
+
+memory:
+  enabled: true
+  max_turns: 10
+  storage_path: 'data/memory_bank.json'

@@ -4,3 +4,6 @@ accelerate
 bitsandbytes
 peft
 celery
+uvicorn
+QLoRA
+trl
