@@ -86,42 +86,60 @@ else:
 print(f"[SLM] Base Model Path = {base_model_path}")
 print(f"[SLM] Assistant Model Path = {assistant_model_path}")
 
-# 3. Load Tokenizer & Models
-print("[SLM] Loading tokenizer...")
-tokenizer = AutoTokenizer.from_pretrained(base_model_path)
-
-print("[SLM] Loading base model...")
-model = AutoModelForCausalLM.from_pretrained(
-    base_model_path,
-    **model_kwargs,
-)
-
-if 'adapter_path' in locals() and adapter_path and os.path.exists(adapter_path):
-    print(f"[SLM] Loading fine-tuned LoRA adapter from {adapter_path}...")
-    try:
-        from peft import PeftModel
-        model = PeftModel.from_pretrained(model, adapter_path)
-        print("[SLM] LoRA adapter successfully attached.")
-    except Exception as e:
-        print(f"[SLM] Failed to load LoRA adapter: {e}")
-
+# Global references for lazy loading
+tokenizer = None
+model = None
 assistant_model = None
-if assistant_model_path and os.path.exists(assistant_model_path):
-    print("[SLM] Loading assistant model for speculative decoding...")
-    assistant_model = AutoModelForCausalLM.from_pretrained(
-        assistant_model_path,
+is_model_loaded = False
+
+def ensure_model_loaded():
+    global tokenizer, model, assistant_model, is_model_loaded
+    if is_model_loaded and model is not None:
+        return
+
+    print(f"[SLM] Base Model Path = {base_model_path}")
+    print(f"[SLM] Assistant Model Path = {assistant_model_path}")
+
+    # Load Tokenizer
+    print("[SLM] Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+
+    # Load Base Model
+    print("[SLM] Loading base model...")
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model_path,
         **model_kwargs,
     )
-else:
-    print("[SLM] Running without assistant model.")
 
-print("[SLM] Load complete.")
+    if 'adapter_path' in locals() and adapter_path and os.path.exists(adapter_path):
+        print(f"[SLM] Loading fine-tuned LoRA adapter from {adapter_path}...")
+        try:
+            from peft import PeftModel
+            model = PeftModel.from_pretrained(model, adapter_path)
+            print("[SLM] LoRA adapter successfully attached.")
+        except Exception as e:
+            print(f"[SLM] Failed to load LoRA adapter: {e}")
 
+    if assistant_model_path and os.path.exists(assistant_model_path):
+        print("[SLM] Loading assistant model for speculative decoding...")
+        try:
+            assistant_model = AutoModelForCausalLM.from_pretrained(
+                assistant_model_path,
+                **model_kwargs,
+            )
+        except Exception as e:
+            print(f"[SLM] Note: Skipping assistant model load: {e}")
+            assistant_model = None
+
+    is_model_loaded = True
+    print("[SLM] Model load complete.")
 
 from slm_core.memory import ShortTermMemory, LongTermMemory
 
 # 4. Generation Wrapper
 def generate(prompt_or_messages, max_tokens: int = None) -> str:
+    ensure_model_loaded()
+
     if max_tokens is None:
         max_tokens = generation_params["max_new_tokens"]
         
