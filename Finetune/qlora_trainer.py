@@ -99,6 +99,9 @@ def run_qlora_training(
     lora_alpha: int = 32,
     dataloader_num_workers: int = 0,
     max_minutes: int = 0,
+    mixed_precision: str = "Auto",
+    gradient_checkpointing: bool = True,
+    grad_accum: int = 0,
     stop_checker_fn=None,
     progress_callback_fn=None,
     model_path: str = None,
@@ -138,12 +141,19 @@ def run_qlora_training(
         torch.backends.cudnn.allow_tf32 = True
 
     bnb_config = None
+    compute_dtype = torch.float16
+    
+    if mixed_precision == "BF16" or (mixed_precision == "Auto" and is_cuda and torch.cuda.is_bf16_supported()):
+        compute_dtype = torch.bfloat16
+    elif mixed_precision == "FP16":
+        compute_dtype = torch.float16
+
     if is_cuda:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=compute_dtype,
         )
 
     # 3. Load Tokenizer & Model
@@ -225,11 +235,20 @@ def run_qlora_training(
     )
 
     # 6. Training Arguments
-    grad_accum = 3 if batch_size == 6 else (4 if batch_size <= 4 else 2)
+    calculated_grad_accum = grad_accum if grad_accum > 0 else (3 if batch_size == 6 else (4 if batch_size <= 4 else 2))
+    
+    use_bf16 = False
+    use_fp16 = False
+    if is_cuda:
+        if mixed_precision == "BF16" or (mixed_precision == "Auto" and torch.cuda.is_bf16_supported()):
+            use_bf16 = True
+        elif mixed_precision == "FP16" or (mixed_precision == "Auto" and not torch.cuda.is_bf16_supported()):
+            use_fp16 = True
+
     training_args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=grad_accum,
+        gradient_accumulation_steps=calculated_grad_accum,
         learning_rate=learning_rate,
         warmup_steps=100,
         lr_scheduler_type="cosine",
@@ -241,10 +260,10 @@ def run_qlora_training(
         save_total_limit=2,
         dataloader_num_workers=0,
         dataloader_pin_memory=is_cuda,
-        gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
-        bf16=is_cuda,
-        fp16=False,
+        gradient_checkpointing=gradient_checkpointing,
+        gradient_checkpointing_kwargs={"use_reentrant": False} if gradient_checkpointing else None,
+        bf16=use_bf16,
+        fp16=use_fp16,
         optim="paged_adamw_8bit" if is_cuda else "adamw_torch",
         report_to="none",
     )

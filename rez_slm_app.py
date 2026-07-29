@@ -747,8 +747,40 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_steps_entry = ctk.CTkEntry(self.custom_inputs_frame, textvariable=self.tr_steps_var, width=65, font=ctk.CTkFont(family="Consolas", size=11), fg_color="#040711", height=26)
         self.tr_steps_entry.grid(row=0, column=5, padx=(4, 12), sticky="w")
 
-        self.tr_batch_var.trace_add("write", self.update_vram_summary)
         self.tr_steps_var.trace_add("write", self.update_vram_summary)
+
+        # Advanced Settings Row
+        self.adv_inputs_frame = ctk.CTkFrame(mode_card, fg_color="transparent")
+        self.adv_inputs_frame.pack(fill="x", padx=28, pady=(0, 8))
+
+        ctk.CTkLabel(self.adv_inputs_frame, text="Mixed Precision:", font=ctk.CTkFont(family="Inter", size=11), text_color="#94A3B8").grid(row=0, column=0, sticky="w")
+        self.tr_precision_var = ctk.StringVar(value="Auto")
+        self.tr_precision_combo = ctk.CTkOptionMenu(
+            self.adv_inputs_frame, 
+            variable=self.tr_precision_var, 
+            values=["Auto", "BF16", "FP16"],
+            width=70, height=26,
+            font=ctk.CTkFont(family="Consolas", size=11),
+            fg_color="#1E293B", button_color="#0284C7"
+        )
+        self.tr_precision_combo.grid(row=0, column=1, padx=(4, 12), sticky="w")
+
+        ctk.CTkLabel(self.adv_inputs_frame, text="Grad Accum:", font=ctk.CTkFont(family="Inter", size=11), text_color="#94A3B8").grid(row=0, column=2, sticky="w")
+        self.tr_grad_accum_var = ctk.StringVar(value="0") # 0 = auto
+        self.tr_grad_accum_entry = ctk.CTkEntry(self.adv_inputs_frame, textvariable=self.tr_grad_accum_var, width=50, font=ctk.CTkFont(family="Consolas", size=11), fg_color="#040711", height=26)
+        self.tr_grad_accum_entry.grid(row=0, column=3, padx=(4, 12), sticky="w")
+        self.tr_grad_accum_var.trace_add("write", self.update_vram_summary)
+
+        self.tr_grad_ckpt_var = ctk.StringVar(value="on")
+        self.tr_grad_ckpt_switch = ctk.CTkSwitch(
+            self.adv_inputs_frame, 
+            text="Grad Checkpointing", 
+            variable=self.tr_grad_ckpt_var, 
+            onvalue="on", offvalue="off",
+            font=ctk.CTkFont(family="Inter", size=11),
+            text_color="#94A3B8"
+        )
+        self.tr_grad_ckpt_switch.grid(row=0, column=4, padx=(4, 12), sticky="w")
 
         self.apply_tr_vram_rec()
         self.toggle_tr_mode_inputs()
@@ -823,6 +855,8 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_batch_entry.configure(state="normal")
         self.tr_lr_entry.configure(state="normal")
         self.tr_steps_entry.configure(state="normal")
+        if hasattr(self, 'tr_grad_accum_entry'):
+            self.tr_grad_accum_entry.configure(state="normal")
 
     def update_vram_summary(self, *args):
         try:
@@ -835,11 +869,16 @@ class ModernRezSLMApp(ctk.CTk):
         except ValueError:
             user_batch = 4
 
+        try:
+            user_accum = int(self.tr_grad_accum_var.get()) if hasattr(self, 'tr_grad_accum_var') else 0
+        except ValueError:
+            user_accum = 0
+
         rec = VRAMOptimizer.calculate_recommended_settings(vram)
-        grad_accum = 3 if user_batch == 6 else (4 if user_batch <= 4 else 2)
+        grad_accum = user_accum if user_accum > 0 else (3 if user_batch == 6 else (4 if user_batch <= 4 else 2))
         eff_batch = user_batch * grad_accum
 
-        is_override = user_batch != rec["batch_size"]
+        is_override = user_batch != rec["batch_size"] or (user_accum > 0 and user_accum != (3 if rec["batch_size"] == 6 else (4 if rec["batch_size"] <= 4 else 2)))
         color_val = "#F59E0B" if is_override else "#10B981"
         tag = f"Aggressive Override (Batch {user_batch})" if is_override else rec["profile_name"]
 
@@ -906,6 +945,14 @@ class ModernRezSLMApp(ctk.CTk):
         except ValueError:
             max_minutes = 0
 
+        try:
+            grad_accum = int(self.tr_grad_accum_var.get())
+        except ValueError:
+            grad_accum = 0
+
+        mixed_precision = self.tr_precision_var.get()
+        grad_ckpt = (self.tr_grad_ckpt_var.get() == "on")
+
         self.is_training = True
         self.stop_requested = False
 
@@ -919,15 +966,16 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_log_text.insert("end", f"[Launcher] Base Model: {model_path}\n")
         self.tr_log_text.insert("end", f"[Launcher] Dataset: {dataset_path}\n")
         self.tr_log_text.insert("end", f"[Launcher] Output Directory: {output_dir}\n")
-        self.tr_log_text.insert("end", f"[Launcher] Batch Size: {batch_size} | Max Steps: {max_steps}\n\n")
+        self.tr_log_text.insert("end", f"[Launcher] Batch Size: {batch_size} | Max Steps: {max_steps}\n")
+        self.tr_log_text.insert("end", f"[Launcher] Precision: {mixed_precision} | Grad Accum: {grad_accum if grad_accum > 0 else 'Auto'} | Grad Ckpt: {grad_ckpt}\n\n")
 
         threading.Thread(
             target=self._training_thread_func,
-            args=(model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes),
+            args=(model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum),
             daemon=True
         ).start()
 
-    def _training_thread_func(self, model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes):
+    def _training_thread_func(self, model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum):
         old_stdout = sys.stdout
         sys.stdout = OutputRedirector(self.tr_log_text)
         try:
@@ -947,6 +995,9 @@ class ModernRezSLMApp(ctk.CTk):
                 lora_alpha=32,
                 dataloader_num_workers=0,
                 max_minutes=max_minutes,
+                mixed_precision=mixed_precision,
+                gradient_checkpointing=grad_ckpt,
+                grad_accum=grad_accum,
                 stop_checker_fn=lambda: self.stop_requested,
                 progress_callback_fn=self._on_training_step_progress
             )
