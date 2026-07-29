@@ -1,12 +1,35 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_all
+
+# These libraries do heavy dynamic/conditional importing internally
+# (lazy submodule loading, plugin-style registration) that PyInstaller's
+# static analyzer can miss. collect_all() grabs their submodules, data
+# files, and binaries explicitly so the frozen exe doesn't throw
+# ModuleNotFoundError at runtime for something only imported conditionally.
+# Depends on: Finetune/qlora_trainer.py existing at build time.
+# Downstream: Analysis() below consumes these three lists directly.
+datas = []
+binaries = []
+hiddenimports = ['Finetune.qlora_trainer']
+
+for pkg in ['transformers', 'peft', 'bitsandbytes', 'datasets', 'accelerate', 'huggingface_hub']:
+    pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
+    datas += pkg_datas
+    binaries += pkg_binaries
+    hiddenimports += pkg_hiddenimports
+
+import os, huggingface_hub
+hf_tmpl = os.path.join(os.path.dirname(huggingface_hub.__file__), 'templates')
+if os.path.exists(hf_tmpl):
+    datas.append((hf_tmpl, 'huggingface_hub/templates'))
 
 a = Analysis(
     ['rez_slm_app.py'],
     pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -174,8 +174,8 @@ class VRAMOptimizer:
                 "learning_rate": "2e-4",
                 "sub_sample": 45000,
                 "quantization": "4-bit NF4",
-                "estimated_vram": "~7.2 - 8.5 GB",
-                "profile_name": "Medium (8GB-10GB VRAM)"
+                "estimated_vram": "~7.8 - 8.4 GB",
+                "profile_name": "Optimized 9GB Cap (100% Stable)"
             }
         elif vram <= 11.5:
             # 10.8 GB Safe Cap Profile for RTX 4070 SUPER (12GB)
@@ -434,7 +434,7 @@ class ModernRezSLMApp(ctk.CTk):
         self.selected_model_path = self.model_combo_var.get().strip()
         self._clear_main_container()
 
-        card = ctk.CTkScrollableFrame(self.main_container, fg_color="#111827", corner_radius=14, border_width=1, border_color="#1E293B")
+        card = ctk.CTkFrame(self.main_container, fg_color="#111827", corner_radius=14, border_width=1, border_color="#1E293B")
         card.pack(fill="both", expand=True, pady=4, padx=4)
 
         # Header Row
@@ -641,12 +641,12 @@ class ModernRezSLMApp(ctk.CTk):
         self.selected_model_path = self.model_combo_var.get().strip()
         self._clear_main_container()
 
-        card = ctk.CTkScrollableFrame(self.main_container, fg_color="#111827", corner_radius=14, border_width=1, border_color="#1E293B")
+        card = ctk.CTkFrame(self.main_container, fg_color="#111827", corner_radius=14, border_width=1, border_color="#1E293B")
         card.pack(fill="both", expand=True, pady=4, padx=4)
 
         # 1. Header Row
         top_row = ctk.CTkFrame(card, fg_color="transparent")
-        top_row.pack(fill="x", padx=16, pady=(12, 6))
+        top_row.pack(fill="x", padx=16, pady=(12, 4))
 
         ctk.CTkLabel(top_row, text=f"🔥 QLoRA Fine-Tuning — Base Model: {os.path.basename(self.selected_model_path)}", font=ctk.CTkFont(family="Inter", size=14, weight="bold"), text_color="#EF4444").pack(side="left")
         ctk.CTkButton(top_row, text="← Change Model", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), fg_color="#334155", hover_color="#475569", width=120, height=28, command=self.show_step_2_select_model).pack(side="right")
@@ -690,10 +690,10 @@ class ModernRezSLMApp(ctk.CTk):
             text_color="#EAB308",
             command=self.toggle_tr_mode_inputs
         )
-        rb_auto.pack(anchor="w", padx=14, pady=(8, 2))
+        rb_auto.pack(anchor="w", padx=14, pady=(6, 2))
 
         v_row = ctk.CTkFrame(mode_card, fg_color="transparent")
-        v_row.pack(fill="x", padx=28, pady=(0, 4))
+        v_row.pack(fill="x", padx=28, pady=(0, 2))
 
         ctk.CTkLabel(v_row, text="Target Max VRAM (GB):", font=ctk.CTkFont(family="Inter", size=11), text_color="#94A3B8").pack(side="left")
         
@@ -701,6 +701,7 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_vram_var = ctk.StringVar(value=str(safe_vram_cap))
         self.tr_vram_entry = ctk.CTkEntry(v_row, textvariable=self.tr_vram_var, width=54, font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), fg_color="#040711", text_color="#EAB308", height=26)
         self.tr_vram_entry.pack(side="left", padx=6)
+        self.tr_vram_var.trace_add("write", self.update_vram_summary)
 
         ctk.CTkButton(v_row, text="⚡ Apply VRAM Settings", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), fg_color="#EAB308", hover_color="#CA8A04", text_color="#000000", width=140, height=26, command=self.apply_tr_vram_rec).pack(side="left", padx=6)
 
@@ -709,7 +710,7 @@ class ModernRezSLMApp(ctk.CTk):
 
         # Timed Training Setting
         time_row = ctk.CTkFrame(mode_card, fg_color="transparent")
-        time_row.pack(fill="x", padx=28, pady=(0, 4))
+        time_row.pack(fill="x", padx=28, pady=(0, 2))
 
         ctk.CTkLabel(time_row, text="⏱️ Max Training Duration (Minutes, 0=Unlimited):", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#F8FAFC").pack(side="left")
         self.tr_time_limit_var = ctk.StringVar(value="0")
@@ -725,11 +726,11 @@ class ModernRezSLMApp(ctk.CTk):
             text_color="#F8FAFC",
             command=self.toggle_tr_mode_inputs
         )
-        rb_custom.pack(anchor="w", padx=14, pady=(4, 4))
+        rb_custom.pack(anchor="w", padx=14, pady=(2, 2))
 
         # Custom inputs grid
         self.custom_inputs_frame = ctk.CTkFrame(mode_card, fg_color="transparent")
-        self.custom_inputs_frame.pack(fill="x", padx=28, pady=(0, 6))
+        self.custom_inputs_frame.pack(fill="x", padx=28, pady=(0, 4))
 
         ctk.CTkLabel(self.custom_inputs_frame, text="Batch Size:", font=ctk.CTkFont(family="Inter", size=11), text_color="#94A3B8").grid(row=0, column=0, sticky="w")
         self.tr_batch_var = ctk.StringVar(value="6")
@@ -746,15 +747,18 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_steps_entry = ctk.CTkEntry(self.custom_inputs_frame, textvariable=self.tr_steps_var, width=65, font=ctk.CTkFont(family="Consolas", size=11), fg_color="#040711", height=26)
         self.tr_steps_entry.grid(row=0, column=5, padx=(4, 12), sticky="w")
 
+        self.tr_batch_var.trace_add("write", self.update_vram_summary)
+        self.tr_steps_var.trace_add("write", self.update_vram_summary)
+
         self.apply_tr_vram_rec()
         self.toggle_tr_mode_inputs()
 
-        # 4. PRIMARY CONTROLS & LIVE PROGRESS SECTION (PROMINENT & ALWAYS VISIBLE!)
+        # 4. PRIMARY CONTROLS & DUAL PROGRESS BARS (RUN % & 4.94M DATASET %)
         ctrl_card = ctk.CTkFrame(card, fg_color="#0F172A", corner_radius=10, border_width=1, border_color="#334155")
-        ctrl_card.pack(fill="x", padx=16, pady=6)
+        ctrl_card.pack(fill="x", padx=16, pady=4)
 
         tr_btn_row = ctk.CTkFrame(ctrl_card, fg_color="transparent")
-        tr_btn_row.pack(fill="x", padx=14, pady=(12, 8))
+        tr_btn_row.pack(fill="x", padx=14, pady=(8, 6))
 
         self.start_tr_btn = ctk.CTkButton(
             tr_btn_row,
@@ -762,7 +766,7 @@ class ModernRezSLMApp(ctk.CTk):
             font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
             fg_color="#EF4444",
             hover_color="#DC2626",
-            height=42,
+            height=38,
             command=self.execute_training_in_process
         )
         self.start_tr_btn.pack(side="left", expand=True, fill="x", padx=(0, 10))
@@ -774,31 +778,81 @@ class ModernRezSLMApp(ctk.CTk):
             fg_color="#DC2626",
             hover_color="#B91C1C",
             state="disabled",
-            height=42,
-            width=180,
+            height=38,
+            width=170,
             command=self.request_stop_training
         )
         self.stop_tr_btn.pack(side="right")
 
-        # Live Progress Bar & Live Status Label
-        self.tr_progress_bar = ctk.CTkProgressBar(ctrl_card, height=16, fg_color="#1E293B", progress_color="#10B981")
+        # Live Progress Bars Frame
+        progress_grid = ctk.CTkFrame(ctrl_card, fg_color="transparent")
+        progress_grid.pack(fill="x", padx=14, pady=(2, 6))
+
+        # 4A. Run Progress (Steps / Max Steps)
+        r_hdr = ctk.CTkFrame(progress_grid, fg_color="transparent")
+        r_hdr.pack(fill="x")
+        ctk.CTkLabel(r_hdr, text="⚡ Current Run Progress (Max Steps):", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#10B981").pack(side="left")
+        self.run_pct_lbl = ctk.CTkLabel(r_hdr, text="0.0% (Step 0 / 18,000)", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color="#10B981")
+        self.run_pct_lbl.pack(side="right")
+
+        self.tr_progress_bar = ctk.CTkProgressBar(progress_grid, height=12, fg_color="#1E293B", progress_color="#10B981")
         self.tr_progress_bar.set(0.0)
-        self.tr_progress_bar.pack(fill="x", padx=14, pady=(4, 6))
+        self.tr_progress_bar.pack(fill="x", pady=(2, 4))
 
-        self.tr_progress_lbl = ctk.CTkLabel(ctrl_card, text="Status: Ready to start fine-tuning...", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color="#06B6D4")
-        self.tr_progress_lbl.pack(anchor="w", padx=14, pady=(0, 10))
+        # 4B. Total Dataset Progress (of 4.94M Records)
+        ds_hdr = ctk.CTkFrame(progress_grid, fg_color="transparent")
+        ds_hdr.pack(fill="x")
+        ctk.CTkLabel(ds_hdr, text="📊 Total Dataset Coverage (of 4.94M Records):", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#06B6D4").pack(side="left")
+        self.dataset_pct_lbl = ctk.CTkLabel(ds_hdr, text="0.000% (0 / 4,940,000 records)", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color="#06B6D4")
+        self.dataset_pct_lbl.pack(side="right")
 
-        # 5. Live Terminal Log Output Box
-        ctk.CTkLabel(card, text="Training Log Terminal (Real-time stdout):", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=16, pady=(6, 2))
-        self.tr_log_text = ctk.CTkTextbox(card, height=180, font=ctk.CTkFont(family="Consolas", size=10), fg_color="#02040A", text_color="#4ADE80")
-        self.tr_log_text.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+        self.tr_dataset_progress_bar = ctk.CTkProgressBar(progress_grid, height=12, fg_color="#1E293B", progress_color="#06B6D4")
+        self.tr_dataset_progress_bar.set(0.0)
+        self.tr_dataset_progress_bar.pack(fill="x", pady=(2, 4))
+
+        self.tr_progress_lbl = ctk.CTkLabel(ctrl_card, text="Status: Ready to start fine-tuning...", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color="#94A3B8")
+        self.tr_progress_lbl.pack(anchor="w", padx=14, pady=(0, 6))
+
+        # 5. Live Terminal Log Output Box (DYNAMICALLY SCALES WITH WINDOW RESIZE!)
+        ctk.CTkLabel(card, text="Training Log Terminal (Real-time stdout — Viewbox dynamically scales):", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=16, pady=(4, 2))
+        self.tr_log_text = ctk.CTkTextbox(card, font=ctk.CTkFont(family="Consolas", size=10), fg_color="#02040A", text_color="#4ADE80", corner_radius=8)
+        self.tr_log_text.pack(fill="both", expand=True, padx=16, pady=(0, 10))
 
     def toggle_tr_mode_inputs(self):
-        mode = self.tr_mode_var.get()
-        state_val = "disabled" if mode == "auto" else "normal"
-        self.tr_batch_entry.configure(state=state_val)
-        self.tr_lr_entry.configure(state=state_val)
-        self.tr_steps_entry.configure(state=state_val)
+        # Keep hyperparameter fields accessible so users can customize batch size even with VRAM cap active
+        self.tr_batch_entry.configure(state="normal")
+        self.tr_lr_entry.configure(state="normal")
+        self.tr_steps_entry.configure(state="normal")
+
+    def update_vram_summary(self, *args):
+        try:
+            vram = float(self.tr_vram_var.get())
+        except ValueError:
+            vram = 10.8
+
+        try:
+            user_batch = int(self.tr_batch_var.get())
+        except ValueError:
+            user_batch = 4
+
+        rec = VRAMOptimizer.calculate_recommended_settings(vram)
+        grad_accum = 3 if user_batch == 6 else (4 if user_batch <= 4 else 2)
+        eff_batch = user_batch * grad_accum
+
+        is_override = user_batch != rec["batch_size"]
+        color_val = "#F59E0B" if is_override else "#10B981"
+        tag = f"Aggressive Override (Batch {user_batch})" if is_override else rec["profile_name"]
+
+        try:
+            steps_val = int(self.tr_steps_var.get())
+            steps_str = f"{steps_val:,}"
+        except ValueError:
+            steps_str = self.tr_steps_var.get()
+
+        self.vram_summary_lbl.configure(
+            text=f"Batch {user_batch} | Grad Accum {grad_accum} (Eff Batch {eff_batch}) | Context {rec['max_length']} | Steps {steps_str} [{tag}]",
+            text_color=color_val
+        )
 
     def apply_tr_vram_rec(self):
         try:
@@ -809,10 +863,7 @@ class ModernRezSLMApp(ctk.CTk):
         rec = VRAMOptimizer.calculate_recommended_settings(vram)
         self.tr_batch_var.set(str(rec["batch_size"]))
         self.tr_steps_var.set(str(rec["max_steps"]))
-        self.vram_summary_lbl.configure(
-            text=f"Rec: Batch {rec['batch_size']} | Grad Accum {rec['gradient_accumulation_steps']} (Eff Batch {rec['effective_batch_size']}) | Context {rec['max_length']} | Steps {rec['max_steps']:,} [{rec['profile_name']}]",
-            text_color="#10B981"
-        )
+        self.update_vram_summary()
 
     def browse_tr_dataset(self):
         p = ctk.filedialog.askopenfilename(title="Select Training Dataset File", filetypes=[("JSONL / Dataset Files", "*.jsonl *.csv *.json *.zip"), ("All Files", "*.*")])
@@ -861,7 +912,7 @@ class ModernRezSLMApp(ctk.CTk):
         self.start_tr_btn.configure(state="disabled", text="⏳  Fine-Tuning in Progress...", fg_color="#334155")
         self.stop_tr_btn.configure(state="normal", text="🛑  STOP TRAINING", fg_color="#DC2626")
         self.tr_progress_bar.set(0.0)
-        self.tr_progress_lbl.configure(text="Step 0 / 0 | Loading GPU weights into VRAM...", text_color="#06B6D4")
+        self.tr_progress_lbl.configure(text="Step 0 / 0 | Initializing GPU & Tokenizing Dataset...", text_color="#06B6D4")
 
         self.tr_log_text.delete("1.0", "end")
         self.tr_log_text.insert("1.0", f"[Launcher] Starting QLoRA fine-tuning run...\n")
@@ -890,7 +941,7 @@ class ModernRezSLMApp(ctk.CTk):
                 batch_size=batch_size,
                 learning_rate=lr,
                 max_steps=max_steps,
-                sub_sample=0,
+                sub_sample=45000,
                 max_length=384,
                 r=16,
                 lora_alpha=32,
@@ -906,20 +957,36 @@ class ModernRezSLMApp(ctk.CTk):
             sys.stdout = old_stdout
             self.after(0, self._on_training_completed)
 
-    def _on_training_step_progress(self, current_step, total_steps, loss, start_time):
+    def _on_training_step_progress(self, current_step, total_steps, loss, start_time, eff_batch=18):
         def _update():
+            TOTAL_DATASET = 4_940_000
+            # 1. Run Progress
             if total_steps > 0:
-                fraction = min(1.0, current_step / float(total_steps))
-                pct = fraction * 100.0
-                self.tr_progress_bar.set(fraction)
+                run_fraction = min(1.0, current_step / float(total_steps))
+                run_pct = run_fraction * 100.0
+                self.tr_progress_bar.set(run_fraction)
             else:
-                pct = 0.0
+                run_fraction = 0.0
+                run_pct = 0.0
+
+            # 2. Dataset Progress of 4.94M
+            records_processed = current_step * eff_batch
+            ds_fraction = min(1.0, records_processed / float(TOTAL_DATASET))
+            ds_pct = (records_processed / float(TOTAL_DATASET)) * 100.0
+            self.tr_dataset_progress_bar.set(ds_fraction)
+
+            # Update Labels
+            if hasattr(self, 'run_pct_lbl'):
+                self.run_pct_lbl.configure(text=f"{run_pct:.1f}% (Step {current_step:,} / {total_steps:,})")
+            if hasattr(self, 'dataset_pct_lbl'):
+                self.dataset_pct_lbl.configure(text=f"{ds_pct:.3f}% ({records_processed:,} / 4,940,000 records)")
 
             elapsed_sec = int(time.time() - start_time)
             m, s = divmod(elapsed_sec, 60)
-            elapsed_str = f"{m:02d}:{s:02d}"
+            h, m = divmod(m, 60)
+            elapsed_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
-            status_str = f"Step {current_step} / {total_steps:,} ({pct:.1f}%) | Loss: {loss:.4f} | Elapsed: {elapsed_str}"
+            status_str = f"Step {current_step:,}/{total_steps:,} ({run_pct:.1f}% Run) | {ds_pct:.3f}% of 4.94M Dataset ({records_processed:,} records) | Loss: {loss:.4f} | Elapsed: {elapsed_str}"
             self.tr_progress_lbl.configure(text=status_str, text_color="#10B981")
 
         self.after(0, _update)

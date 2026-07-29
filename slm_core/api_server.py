@@ -93,6 +93,8 @@ def get_control_center_dashboard():
         radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.9) 0px, transparent 100%);
       color: var(--text-main);
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
       padding: 24px;
     }
     .header {
@@ -218,7 +220,7 @@ def get_control_center_dashboard():
     .status-online { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
     .status-offline { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
 
-    .console-card { grid-column: 1 / -1; }
+    .console-card { grid-column: 1 / -1; flex: 1; display: flex; flex-direction: column; }
     .console-input {
       width: 100%;
       background: rgba(0, 0, 0, 0.4);
@@ -241,6 +243,7 @@ def get_control_center_dashboard():
       cursor: pointer;
       font-size: 13px;
       transition: transform 0.1s;
+      align-self: flex-start;
     }
     .console-btn:hover { transform: translateY(-1px); }
     .console-output {
@@ -252,7 +255,8 @@ def get_control_center_dashboard():
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       color: #a5f3fc;
-      max-height: 200px;
+      flex: 1;
+      min-height: 200px;
       overflow-y: auto;
       white-space: pre-wrap;
     }

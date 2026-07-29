@@ -21,3 +21,8 @@ Finetune/*.xlsx
 # Runtime data & logs
 data/memory_bank.json
 *.log
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec

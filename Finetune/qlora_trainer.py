@@ -1,4 +1,5 @@
 import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import sys
 import argparse
 import torch
@@ -6,6 +7,7 @@ import yaml
 from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
+    Gemma4ForConditionalGeneration,
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
@@ -17,12 +19,16 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import time
 from transformers import TrainerCallback
 
+
 class CustomControlCallback(TrainerCallback):
-    def __init__(self, stop_checker=None, progress_callback=None, max_minutes=0):
+    def __init__(self, stop_checker=None, progress_callback=None, max_minutes=0, total_dataset_records=4940000):
         self.stop_checker = stop_checker
         self.progress_callback = progress_callback
         self.max_minutes = max_minutes
+        self.total_dataset_records = total_dataset_records
         self.start_time = time.time()
+        self.last_heartbeat_time = time.time()
+        self.last_step = 0
 
     def on_step_end(self, args, state, control, **kwargs):
         if self.stop_checker and self.stop_checker():
@@ -33,10 +39,51 @@ class CustomControlCallback(TrainerCallback):
             if elapsed_mins >= self.max_minutes:
                 print(f"\n[QLoRA] Max training time limit reached ({self.max_minutes} mins)! Halting training...")
                 control.should_training_stop = True
+
+        # Retrieve latest loss value from state log history
+        loss_val = 0.0
+        if state.log_history:
+            for entry in reversed(state.log_history):
+                if "loss" in entry:
+                    try:
+                        loss_val = float(entry["loss"])
+                    except (ValueError, TypeError):
+                        loss_val = 0.0
+                    break
+
+        eff_batch = (args.per_device_train_batch_size or 1) * (args.gradient_accumulation_steps or 1)
+        records_processed = state.global_step * eff_batch
+        pct_4_94m = (records_processed / float(self.total_dataset_records)) * 100.0
+
         if self.progress_callback:
-            latest_log = state.log_history[-1] if state.log_history else {}
-            loss_val = latest_log.get("loss", 0.0)
-            self.progress_callback(state.global_step, state.max_steps, loss_val, self.start_time)
+            try:
+                self.progress_callback(state.global_step, state.max_steps, loss_val, self.start_time, eff_batch)
+            except TypeError:
+                self.progress_callback(state.global_step, state.max_steps, loss_val, self.start_time)
+
+        # 60-Second Periodic Status Heartbeat Log
+        now = time.time()
+        if now - self.last_heartbeat_time >= 60.0:
+            self.last_heartbeat_time = now
+            steps_done = state.global_step - self.last_step
+            self.last_step = state.global_step
+            sec_per_it = 60.0 / max(1, steps_done)
+            pct_run = (state.global_step / max(1, state.max_steps)) * 100.0 if state.max_steps > 0 else 0.0
+
+            elapsed_sec = int(now - self.start_time)
+            m, s = divmod(elapsed_sec, 60)
+            h, m = divmod(m, 60)
+            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+
+            vram_str = ""
+            if torch.cuda.is_available():
+                allocated = round(torch.cuda.memory_allocated(0) / (1024 ** 3), 2)
+                reserved = round(torch.cuda.memory_reserved(0) / (1024 ** 3), 2)
+                vram_str = f" | Actual GPU VRAM consumed={allocated} GB | Total VRAM reserved={reserved} GB"
+
+            print(f"[Heartbeat {time.strftime('%H:%M:%S')}] Step {state.global_step}/{state.max_steps:,} ({pct_run:.1f}% Run | {pct_4_94m:.3f}% of 4.94M Dataset) | Processed: {records_processed:,}/4,940,000 records | Loss: {loss_val:.4f} | Pace: {sec_per_it:.1f}s/it | Elapsed: {time_str}{vram_str} | Status: RUNNING OK")
+
+
 
 def run_qlora_training(
     config_path: str = "config.yaml",
@@ -116,13 +163,15 @@ def run_qlora_training(
     if bnb_config:
         model_kwargs["quantization_config"] = bnb_config
 
-    model = AutoModelForCausalLM.from_pretrained(base_model_path, **model_kwargs)
+    model = Gemma4ForConditionalGeneration.from_pretrained(base_model_path, **model_kwargs)  # was AutoModelForCausalLM
 
     if is_cuda:
         model = prepare_model_for_kbit_training(model)
 
     # 4. Set up LoRA Configuration
-    target_mods = ["linear", "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    # Gemma 4 E4B-it is multimodal — scope LoRA to text-decoder layers only,
+    # bare "linear"/"q_proj" leaks into vision/audio towers otherwise.
+    target_mods = r".*language_model\.layers\.\d+\.(self_attn\.(q|k|v|o)_proj|mlp\.(gate|up|down)_proj)$"
     lora_config = LoraConfig(
         r=r,
         lora_alpha=lora_alpha,
@@ -225,9 +274,31 @@ def run_qlora_training(
     trainer.train()
 
     print(f"[QLoRA] Saving fine-tuned LoRA adapter to {output_dir}...")
-    model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    print("[QLoRA] Fine-tuning complete!")
+    try:
+        import huggingface_hub
+        tmpl_dir = os.path.join(os.path.dirname(huggingface_hub.__file__), "templates")
+        os.makedirs(tmpl_dir, exist_ok=True)
+        for t_file in ["modelcard_template.md", "datasetcard_template.md"]:
+            t_path = os.path.join(tmpl_dir, t_file)
+            if not os.path.exists(t_path):
+                with open(t_path, "w", encoding="utf-8") as f:
+                    f.write("---\n# Model Card\n---\n")
+    except Exception as e_tmpl:
+        print(f"[QLoRA] ModelCard template check note: {e_tmpl}")
+
+    try:
+        model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+        print("[QLoRA] Fine-tuning complete!")
+    except Exception as e_save:
+        print(f"[QLoRA] Warning during adapter save: {e_save}")
+        try:
+            model.save_pretrained(output_dir, create_model_card=False)
+            tokenizer.save_pretrained(output_dir)
+            print("[QLoRA] Fine-tuning adapter saved successfully (fallback mode).")
+        except Exception as e_fallback:
+            print(f"[QLoRA] Secondary save error: {e_fallback}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QLoRA Fine-Tuner for Local SLM")
@@ -235,7 +306,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", default="Finetune/training_data.jsonl", help="Path to JSONL dataset")
     parser.add_argument("--output_dir", default="Finetune/output_adapter", help="Directory to save LoRA weights")
     parser.add_argument("--epochs", type=int, default=1, help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size per GPU (default 8)")
+    parser.add_argument("--batch_size", type=int, default=4, help="Batch size per GPU (default 4)")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     parser.add_argument("--max_steps", type=int, default=4500, help="Max training steps (e.g. 4500)")
     parser.add_argument("--sub_sample", type=int, default=45000, help="Sub-sample dataset to N records (e.g. 45000)")
