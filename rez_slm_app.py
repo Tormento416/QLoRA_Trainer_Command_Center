@@ -790,6 +790,17 @@ class ModernRezSLMApp(ctk.CTk):
         )
         self.tr_grad_ckpt_switch.grid(row=0, column=2, padx=(4, 12), sticky="w")
 
+        self.tr_compile_var = ctk.StringVar(value="off")
+        self.tr_compile_switch = ctk.CTkSwitch(
+            self.adv_inputs_frame, 
+            text="torch.compile JIT", 
+            variable=self.tr_compile_var, 
+            onvalue="on", offvalue="off",
+            font=ctk.CTkFont(family="Inter", size=11),
+            text_color="#94A3B8"
+        )
+        self.tr_compile_switch.grid(row=0, column=3, padx=(4, 12), sticky="w")
+
         self.apply_tr_vram_rec()
         self.toggle_tr_mode_inputs()
 
@@ -960,6 +971,7 @@ class ModernRezSLMApp(ctk.CTk):
 
         mixed_precision = self.tr_precision_var.get()
         grad_ckpt = (self.tr_grad_ckpt_var.get() == "on")
+        torch_compile = (self.tr_compile_var.get() == "on")
 
         self.is_training = True
         self.stop_requested = False
@@ -975,15 +987,15 @@ class ModernRezSLMApp(ctk.CTk):
         self.tr_log_text.insert("end", f"[Launcher] Dataset: {dataset_path}\n")
         self.tr_log_text.insert("end", f"[Launcher] Output Directory: {output_dir}\n")
         self.tr_log_text.insert("end", f"[Launcher] Batch Size: {batch_size} | Max Steps: {max_steps}\n")
-        self.tr_log_text.insert("end", f"[Launcher] Precision: {mixed_precision} | Grad Accum: {grad_accum if grad_accum > 0 else 'Auto'} | Grad Ckpt: {grad_ckpt}\n\n")
+        self.tr_log_text.insert("end", f"[Launcher] Precision: {mixed_precision} | Grad Accum: {grad_accum if grad_accum > 0 else 'Auto'} | Grad Ckpt: {grad_ckpt} | torch.compile: {torch_compile}\n\n")
 
         threading.Thread(
             target=self._training_thread_func,
-            args=(model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum),
+            args=(model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum, torch_compile),
             daemon=True
         ).start()
 
-    def _training_thread_func(self, model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum):
+    def _training_thread_func(self, model_path, dataset_path, output_dir, batch_size, lr, max_steps, max_minutes, mixed_precision, grad_ckpt, grad_accum, torch_compile):
         old_stdout = sys.stdout
         sys.stdout = OutputRedirector(self.tr_log_text)
         try:
@@ -1006,6 +1018,7 @@ class ModernRezSLMApp(ctk.CTk):
                 mixed_precision=mixed_precision,
                 gradient_checkpointing=grad_ckpt,
                 grad_accum=grad_accum,
+                torch_compile=torch_compile,
                 stop_checker_fn=lambda: self.stop_requested,
                 progress_callback_fn=self._on_training_step_progress
             )

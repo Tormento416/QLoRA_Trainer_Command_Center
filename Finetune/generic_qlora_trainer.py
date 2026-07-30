@@ -101,6 +101,7 @@ def run_qlora_training(
     mixed_precision: str = "Auto",
     gradient_checkpointing: bool = True,
     grad_accum: int = 0,
+    torch_compile: bool = False,
     stop_checker_fn=None,
     progress_callback_fn=None,
     model_path: str = None,
@@ -272,6 +273,7 @@ def run_qlora_training(
         bf16=use_bf16,
         fp16=use_fp16,
         optim="paged_adamw_8bit" if is_cuda else "adamw_torch",
+        torch_compile=torch_compile if is_cuda else False,
         report_to="none",
         neftune_noise_alpha=5.0, # Added for stability
     )
