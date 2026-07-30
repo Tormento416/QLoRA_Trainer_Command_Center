@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyrLink. | Enterprise Recruiter Dashboard</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+/* Theme Variables */
+:root[data-theme="dark"] {
+    --bg-page: #f1f5f9;
+    --bg-card: #0f172a;
+    --bg-sidebar: #0b1329;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dark: #0f172a;
+    --accent-gold: #ffc72c;
+    --title-color: #0f172a;
+    --border-color: #1e293b;
+    --shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.4);
+    --badge-bg: #1e293b;
+    --input-bg: #1e293b;
+}
+
+:root[data-theme="light"] {
+    --bg-page: #0b1329;
+    --bg-card: #ffffff;
+    --bg-sidebar: #070d1c;
+    --text-main: #020617;
+    --text-muted: #64748b;
+    --text-dark: #ffffff;
+    --accent-gold: #020617;
+    --title-color: #ffc72c;
+    --border-color: #cbd5e1;
+    --shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.25);
+    --badge-bg: #f8fafc;
+    --input-bg: #f8fafc;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    text-shadow: none !important;
+}
+
+/* Strict Viewport Lock: Zero Scroll */
+html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body {
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top Branding Banner */
+.brand-banner {
+    background-color: #000000;
+    color: #ffffff;
+    padding: 8px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 2px solid #ffc72c;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+.logo-text {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: #ffffff;
+    line-height: 1.1;
+}
+
+.gold-dot {
+    color: #ffc72c;
+}
+
+.tagline {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 0.95rem;
+    color: #ffc72c;
+}
+
+/* Layout Wrapper */
+.dashboard-wrapper {
+    display: flex;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Left Sidebar */
+.sidebar {
+    width: 60px;
+    min-width: 60px;
+    background-color: var(--bg-sidebar);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    border-right: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.sidebar-logo {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #ffc72c;
+    margin-bottom: 16px;
+}
+
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+
+.nav-item {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.nav-item.active, .nav-item:hover {
+    background-color: rgba(255, 199, 44, 0.2);
+}
+
+/* Main Content Area */
+.main-content {
+    flex: 1;
+    width: calc(100% - 60px);
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* SPA Views */
+.spa-view {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.spa-view.active {
+    display: flex;
+}
+
+.view-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 6px;
+}
+
+.dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* Page Titles */
+.dash-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--title-color);
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--accent-gold);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: #ffc72c;
+    color: #000000;
+}
+
+.btn-primary {
+    background: #ffc72c;
+    color: #000000;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: #e5b227;
+}
+
+.dropdown-select, .small-select {
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+/* 3-Column Resizable Layout */
+.dashboard-grid {
+    display: flex;
+    gap: 0;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.grid-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.col-left {
+    width: 30%;
+    min-width: 250px;
+}
+
+.col-middle {
+    width: 40%;
+    min-width: 320px;
+    flex: 1;
+}
+
+.col-right {
+    width: 30%;
+    min-width: 250px;
+}
+
+/* Column Resizer Handles */
+.column-resizer {
+    width: 8px;
+    min-width: 8px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.column-resizer:hover, .column-resizer.resizing {
+    background: rgba(255, 199, 44, 0.4);
+}
+
+/* Cards */
+.card {
+    background-color: var(--bg-card);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: 100%;
+    min-height: 0;
+}
+
+.card-flex {
+    flex: 1;
+}
+
+.card-tall {
+    height: 100%;
+    flex: 1;
+}
+
+.card-header {
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.card-header h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+.card-body {
+    padding: 10px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Candidate Panel */
+.tab-header {
+    display: flex;
+    gap: 8px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    color: var(--accent-gold);
+    border-bottom-color: #ffc72c;
+}
+
+.candidate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
+}
+
+.candidate-card {
+    background: var(--badge-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cand-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cand-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.score-badge {
+    background: #ffc72c;
+    color: #000000;
+    font-weight: 800;
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.cand-contact {
+    display: flex;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: var(--text-main);
+}
+
+.cand-contact a {
+    color: var(--accent-gold);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.cand-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 0.72rem;
+}
+
+.badge-skill {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--accent-gold);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* KPI Cards */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    text-align: center;
+}
+
+.kpi-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    text-align: center;
+}
+
+.kpi-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.kpi-value.gold {
+    color: var(--accent-gold);
+}
+
+.kpi-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* PIPELINE VIEW */
+.req-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+}
+
+.req-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow);
+}
+
+.req-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.req-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+.req-badge {
+    background: var(--badge-bg);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.req-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+
+.req-stat-val {
+    font-weight: 800;
+    color: var(--accent-gold);
+}
+
+.threshold-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.threshold-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.threshold-chip {
+    background: var(--badge-bg);
+    border: 1px solid var(--border-color);
+    padding: 6px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.threshold-score {
+    color: var(--accent-gold);
+    font-weight: 700;
+}
+
+.threshold-count {
+    font-weight: 800;
+    color: var(--text-main);
+    margin-top: 2px;
+}
+
+/* SETTINGS VIEW */
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 800px;
+}
+
+.settings-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-card.flex-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-card h2 {
+    font-size: 1rem;
+    color: var(--accent-gold);
+}
+
+.setting-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.settings-textarea {
+    width: 100%;
+    background: var(--input-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.85rem;
+    resize: vertical;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #475569;
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #ffc72c;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+.settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.save-status {
+    font-size: 0.85rem;
+    color: #10b981;
+    font-weight: 600;
+}
+
+.footer-credit {
+    text-align: center;
+    padding: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-sidebar);
+    width: 100%;
+    flex-shrink: 0;
+}
+    </style>
+</head>
+<body>
+    <!-- Top Branding Banner -->
+    <header class="brand-banner">
+        <div class="logo-container">
+            <span class="logo-text">HyrLink<span class="gold-dot">.</span></span>
+        </div>
+        <div class="tagline">Tell us your story.</div>
+    </header>
+
+    <div class="dashboard-wrapper">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">H</div>
+            <nav class="nav-menu">
+                <button class="nav-item active" id="navDashBtn" title="Dashboard">📊</button>
+                <button class="nav-item" id="navPoolBtn" title="Candidate Pool">👤</button>
+                <button class="nav-item" id="navPipelineBtn" title="Job Requisitions Pipeline">📈</button>
+                <button class="nav-item" id="navSettingsBtn" title="Settings">⚙️</button>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="nav-item" title="Profile">👤</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- VIEW 1: MAIN DASHBOARD -->
+            <section class="spa-view active" id="view-dashboard">
+                <div class="dash-header">
+                    <h1 class="dash-title">Hiring Dashboard</h1>
+                    <div class="header-actions">
+                        <button class="themeToggleBtn btn-secondary">🌙 Dark Mode</button>
+                        <select id="requisitionSelect" class="dropdown-select">
+                            <option value="sr_engineer">Senior AI Engineer (Req #402)</option>
+                            <option value="fullstack">Full Stack Developer (Req #408)</option>
+                            <option value="data_sci">Data Scientist (Req #412)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Resizable 3-Column Container -->
+                <div class="dashboard-grid" id="dashboardGrid">
+                    
+                    <!-- COLUMN 1: Visual Analytics (Left) -->
+                    <div class="grid-column col-left" id="col1">
+                        <div class="card card-flex" draggable="true" id="card-pipeline">
+                            <div class="card-header">
+                                <h2>Candidate Pipeline by Stage</h2>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="pipelineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card card-flex" draggable="true" id="card-distribution">
+                            <div class="card-header">
+                                <h2>Candidate Distribution</h2>
+                                <select id="pieMetricSelect" class="small-select">
+                                    <option value="role_fit">AI Role-Fit Tiers</option>
+                                    <option value="seniority">Seniority Levels</option>
+                                    <option value="skills">Skill Domains</option>
+                                </select>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="distributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resizer Handle 1 -->
+                    <div class="column-resizer" id="resizer1" title="Drag horizontally to resize columns"></div>
+
+                    <!-- COLUMN 2: Candidate Match Panel (Middle Tall Section - Clean Cards) -->
+                    <div class="grid-column col-middle" id="col2">
+                        <div class="card card-tall" draggable="true" id="card-candidates">
+                            <div class="card-header border-bottom">
+                                <div class="tab-header">
+                                    <button class="tab-btn active" id="tabAppliedBtn">Applied Candidates</button>
+                                    <button class="tab-btn" id="tabPoolBtn">Platform Pool (Unapplied)</button>
+                                </div>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            
+                            <div class="card-body candidate-panel-body">
+                                <div class="candidate-list" id="candidateList">
+                                    <!-- Dynamic Candidates Injected Here via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resizer Handle 2 -->
+                    <div class="column-resizer" id="resizer2" title="Drag horizontally to resize columns"></div>
+
+                    <!-- COLUMN 3: Executive Metrics & Trends (Right) -->
+                    <div class="grid-column col-right" id="col3">
+                        <div class="card" draggable="true" id="card-time-to-hire">
+                            <div class="card-header">
+                                <h2>Time to Hire</h2>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            <div class="card-body kpi-grid">
+                                <div class="kpi-stat">
+                                    <div class="kpi-value gold">3.29s</div>
+                                    <div class="kpi-label">AI Eval Speed</div>
+                                </div>
+                                <div class="kpi-stat">
+                                    <div class="kpi-value">5</div>
+                                    <div class="kpi-label">Days to Hire</div>
+                                </div>
+                                <div class="kpi-stat">
+                                    <div class="kpi-value">14</div>
+                                    <div class="kpi-label">Screened</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" draggable="true" id="card-requisitions">
+                            <div class="card-header">
+                                <h2>Active Requisitions</h2>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            <div class="card-body kpi-grid-2">
+                                <div class="kpi-stat">
+                                    <div class="kpi-value gold">25+</div>
+                                    <div class="kpi-label">Open Positions</div>
+                                </div>
+                                <div class="kpi-stat">
+                                    <div class="kpi-value">11</div>
+                                    <div class="kpi-label">New Hires</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card card-flex" draggable="true" id="card-hires-ytd">
+                            <div class="card-header">
+                                <h2>New Hires YTD</h2>
+                                <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="ytdChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- VIEW 2: JOB REQUISITIONS PIPELINE MANAGER -->
+            <section class="spa-view" id="view-pipeline">
+                <div class="dash-header">
+                    <h1 class="dash-title">Job Requisitions Pipeline Overview</h1>
+                    <div class="header-actions">
+                        <button class="themeToggleBtn btn-secondary">🌙 Dark Mode</button>
+                    </div>
+                </div>
+
+                <div class="view-scroll-container">
+                    <div class="req-grid" id="reqGrid">
+                        <!-- Dynamic Job Requisitions Injected Here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 3: RECRUITER SETTINGS -->
+            <section class="spa-view" id="view-settings">
+                <div class="dash-header">
+                    <h1 class="dash-title">Recruiter Settings</h1>
+                    <div class="header-actions">
+                        <button class="themeToggleBtn btn-secondary">🌙 Dark Mode</button>
+                    </div>
+                </div>
+
+                <div class="view-scroll-container">
+                    <div class="settings-form">
+                        
+                        <!-- Layout Setting -->
+                        <div class="settings-card">
+                            <h2>Dashboard Grid Layout</h2>
+                            <p class="setting-desc">Choose your default column configuration for the Hiring Dashboard.</p>
+                            <div class="setting-input">
+                                <select id="settingColumns" class="dropdown-select">
+                                    <option value="2">2 Columns (Compact)</option>
+                                    <option value="3" selected>3 Columns (Default Reference Layout)</option>
+                                    <option value="4">4 Columns (Ultra-Wide)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Email Signature Setting -->
+                        <div class="settings-card">
+                            <h2>Recruiter Email Signature</h2>
+                            <p class="setting-desc">Customize your signature for candidate outreach messages.</p>
+                            <div class="setting-input">
+                                <textarea id="settingSignature" class="settings-textarea" rows="4">Best regards,
+A. Sousa | Talent Acquisition Specialist
+HyrLink™ Enterprise Hiring Engine
+email: a.sousa@hyrlink.com | phone: +1 (555) 019-2000</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Automated Rejection Email Template -->
+                        <div class="settings-card">
+                            <h2>Automated Candidate Rejection Template</h2>
+                            <p class="setting-desc">Template sent automatically when a candidate is marked as unsuited.</p>
+                            <div class="setting-input">
+                                <textarea id="settingRejectionTemplate" class="settings-textarea" rows="5">Dear Candidate,
+
+Thank you for taking the time to apply for the open position at HyrLink. After carefully reviewing your qualifications and role-fit match score against our requirements, we have decided to move forward with other candidates whose experience aligns more closely at this time.
+
+We appreciate your interest in our company and wish you success in your job search.
+
+Sincerely,
+HyrLink Talent Team</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Desktop Notifications Setting -->
+                        <div class="settings-card flex-row">
+                            <div>
+                                <h2>Desktop Notifications</h2>
+                                <p class="setting-desc">Receive instant browser alerts when a high-scoring candidate (90%+ Match) applies.</p>
+                            </div>
+                            <div class="setting-input">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="settingNotifications" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>
+                            <span id="settingsSaveStatus" class="save-status"></span>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <footer class="footer-credit">
+        HyrLink™
+    </footer>
+
+    <script>
+// Mock Data for Candidates (Clean without Redaction Artifacts)
+const APPLIED_CANDIDATES = [
+    {
+        name: "Jane Doe",
+        score: "98% Match",
+        email: "jane.doe@techlead.io",
+        phone: "+1 (555) 019-2834",
+        skills: ["Python", "PyTorch", "FastAPI", "Docker"],
+        exp: "7 Yrs Exp"
+    },
+    {
+        name: "Alex Rivera",
+        score: "94% Match",
+        email: "arivera@devstudio.org",
+        phone: "+1 (555) 014-9921",
+        skills: ["TypeScript", "React", "GraphQL", "AWS"],
+        exp: "5 Yrs Exp"
+    },
+    {
+        name: "Marcus Vance",
+        score: "89% Match",
+        email: "marcus.vance@ai-labs.co",
+        phone: "+1 (555) 018-3320",
+        skills: ["Machine Learning", "Transformers", "SQL"],
+        exp: "6 Yrs Exp"
+    },
+    {
+        name: "Samantha Lin",
+        score: "85% Match",
+        email: "slin@systems.io",
+        phone: "+1 (555) 012-4411",
+        skills: ["Kubernetes", "Go", "Distributed Systems"],
+        exp: "8 Yrs Exp"
+    }
+];
+
+const PLATFORM_POOL = [
+    {
+        name: "David Chen",
+        score: "96% Match",
+        email: "dchen@cloudscale.net",
+        phone: "+1 (555) 017-8833",
+        skills: ["PyTorch", "CUDA", "LLM Finetuning", "C++"],
+        exp: "9 Yrs Exp"
+    },
+    {
+        name: "Elena Rostova",
+        score: "92% Match",
+        email: "erostova@algorithm.com",
+        phone: "+1 (555) 015-7744",
+        skills: ["Python", "TensorFlow", "NLP", "Scikit-Learn"],
+        exp: "4 Yrs Exp"
+    },
+    {
+        name: "Jordan Taylor",
+        score: "88% Match",
+        email: "jtaylor@ops.org",
+        phone: "+1 (555) 013-6655",
+        skills: ["Python", "Django", "PostgreSQL", "Redis"],
+        exp: "6 Yrs Exp"
+    }
+];
+
+// Mock Data for Job Requisitions (Pipeline View)
+const JOB_REQUISITIONS = [
+    {
+        id: "Req #402",
+        title: "Senior AI Engineer",
+        daysOpen: 14,
+        totalApplicants: 142,
+        thresholds: {
+            "90%+": 12,
+            "80%+": 34,
+            "70%+": 68,
+            "60%+": 95,
+            "50%+": 115,
+            "40%+": 128,
+            "30%+": 135,
+            "20%+": 140,
+            "10%+": 142
+        }
+    },
+    {
+        id: "Req #408",
+        title: "Full Stack Developer",
+        daysOpen: 21,
+        totalApplicants: 189,
+        thresholds: {
+            "90%+": 18,
+            "80%+": 45,
+            "70%+": 92,
+            "60%+": 130,
+            "50%+": 155,
+            "40%+": 170,
+            "30%+": 180,
+            "20%+": 185,
+            "10%+": 189
+        }
+    },
+    {
+        id: "Req #412",
+        title: "Data Scientist",
+        daysOpen: 7,
+        totalApplicants: 76,
+        thresholds: {
+            "90%+": 8,
+            "80%+": 19,
+            "70%+": 38,
+            "60%+": 52,
+            "50%+": 64,
+            "40%+": 70,
+            "30%+": 74,
+            "20%+": 76,
+            "10%+": 76
+        }
+    }
+];
+
+let pipelineChart, distributionChart, ytdChart;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initNavigation();
+    initTheme();
+    initTabs();
+    renderCandidates(APPLIED_CANDIDATES);
+    renderJobRequisitions();
+    initCharts();
+    initDragAndDrop();
+    initColumnResizers();
+    initSettingsHandler();
+});
+
+// SPA Sidebar Navigation Logic
+function initNavigation() {
+    const navDash = document.getElementById('navDashBtn');
+    const navPipeline = document.getElementById('navPipelineBtn');
+    const navSettings = document.getElementById('navSettingsBtn');
+    const navPool = document.getElementById('navPoolBtn');
+
+    const viewDash = document.getElementById('view-dashboard');
+    const viewPipeline = document.getElementById('view-pipeline');
+    const viewSettings = document.getElementById('view-settings');
+
+    function switchView(targetBtn, targetView) {
+        [navDash, navPipeline, navSettings, navPool].forEach(b => b && b.classList.remove('active'));
+        [viewDash, viewPipeline, viewSettings].forEach(v => v && v.classList.remove('active'));
+
+        targetBtn.classList.add('active');
+        targetView.classList.add('active');
+    }
+
+    navDash.addEventListener('click', () => switchView(navDash, viewDash));
+    navPool.addEventListener('click', () => switchView(navDash, viewDash));
+    navPipeline.addEventListener('click', () => switchView(navPipeline, viewPipeline));
+    navSettings.addEventListener('click', () => switchView(navSettings, viewSettings));
+}
+
+// Theme Switcher Logic
+function initTheme() {
+    const btns = document.querySelectorAll('.themeToggleBtn');
+    const savedTheme = localStorage.getItem('hyrlink_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeButtonsText(savedTheme);
+
+    btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('hyrlink_theme', newTheme);
+            updateThemeButtonsText(newTheme);
+            updateChartColors(newTheme);
+        });
+    });
+}
+
+function updateThemeButtonsText(theme) {
+    const btns = document.querySelectorAll('.themeToggleBtn');
+    btns.forEach(b => {
+        b.innerHTML = theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+    });
+}
+
+// Candidate Tabs Logic
+function initTabs() {
+    const tabApplied = document.getElementById('tabAppliedBtn');
+    const tabPool = document.getElementById('tabPoolBtn');
+
+    tabApplied.addEventListener('click', () => {
+        tabApplied.classList.add('active');
+        tabPool.classList.remove('active');
+        renderCandidates(APPLIED_CANDIDATES);
+    });
+
+    tabPool.addEventListener('click', () => {
+        tabPool.classList.add('active');
+        tabApplied.classList.remove('active');
+        renderCandidates(PLATFORM_POOL);
+    });
+}
+
+// Clean Candidate Card Renderer
+function renderCandidates(list) {
+    const container = document.getElementById('candidateList');
+    container.innerHTML = list.map(c => `
+        <div class="candidate-card">
+            <div class="cand-top">
+                <span class="cand-name">${c.name}</span>
+                <span class="score-badge">${c.score}</span>
+            </div>
+            <div class="cand-contact">
+                <span>✉️ <a href="mailto:${c.email}">${c.email}</a></span>
+                <span>📞 ${c.phone}</span>
+            </div>
+            <div class="cand-details">
+                <span class="badge-skill">${c.exp}</span>
+                ${c.skills.map(s => `<span class="badge-skill">${s}</span>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+// Render Job Requisitions Overview (Pipeline View)
+function renderJobRequisitions() {
+    const container = document.getElementById('reqGrid');
+    if (!container) return;
+
+    container.innerHTML = JOB_REQUISITIONS.map(req => {
+        const thresholdHtml = Object.entries(req.thresholds).map(([score, count]) => `
+            <div class="threshold-chip">
+                <div class="threshold-score">${score}</div>
+                <div class="threshold-count">${count}</div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="req-card">
+                <div class="req-header">
+                    <span class="req-title">${req.title}</span>
+                    <span class="req-badge">${req.id}</span>
+                </div>
+                <div class="req-stats">
+                    <div>Days Open: <span class="req-stat-val">${req.daysOpen}d</span></div>
+                    <div>Total Applicants: <span class="req-stat-val">${req.totalApplicants}</span></div>
+                </div>
+                <div class="threshold-title">Candidates Meeting Role-Fit Score Thresholds:</div>
+                <div class="threshold-grid">
+                    ${thresholdHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Settings Form Handlers
+function initSettingsHandler() {
+    const btn = document.getElementById('saveSettingsBtn');
+    const status = document.getElementById('settingsSaveStatus');
+    const selectCols = document.getElementById('settingColumns');
+
+    if (btn) {
+        btn.addEventListener('click', () => {
+            const cols = selectCols.value;
+            const grid = document.getElementById('dashboardGrid');
+            
+            if (cols === "2") {
+                grid.style.gridTemplateColumns = "1fr 1fr";
+            } else if (cols === "4") {
+                grid.style.gridTemplateColumns = "1fr 1fr 1fr 1fr";
+            } else {
+                grid.style.gridTemplateColumns = "";
+            }
+
+            status.innerHTML = "✓ Settings Saved Successfully!";
+            setTimeout(() => { status.innerHTML = ""; }, 3000);
+        });
+    }
+}
+
+// Chart.js Initialization
+function initCharts() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#f8fafc' : '#0f172a';
+
+    const ctxPipeline = document.getElementById('pipelineChart');
+    if (ctxPipeline) {
+        pipelineChart = new Chart(ctxPipeline.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Screened', '1st Round', 'Pipeline', 'Offered', 'Hired'],
+                datasets: [{
+                    label: 'Candidates',
+                    data: [140, 75, 45, 12, 8],
+                    backgroundColor: ['#ffc72c', '#d97706', '#0284c7', '#10b981', '#6366f1']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: textColor, font: { size: 10 } } },
+                    y: { ticks: { color: textColor, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    const ctxDist = document.getElementById('distributionChart');
+    if (ctxDist) {
+        distributionChart = new Chart(ctxDist.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['High Match (85%+)', 'Moderate (70-84%)', 'Low Match (<70%)'],
+                datasets: [{
+                    data: [45, 35, 20],
+                    backgroundColor: ['#ffc72c', '#0284c7', '#475569']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: textColor, boxWidth: 10, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    const ctxYtd = document.getElementById('ytdChart');
+    if (ctxYtd) {
+        ytdChart = new Chart(ctxYtd.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['2023', '2024', '2025', '2026 YTD'],
+                datasets: [{
+                    label: 'Hires',
+                    data: [28, 42, 65, 71],
+                    backgroundColor: '#ffc72c'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: textColor, font: { size: 10 } } },
+                    y: { ticks: { color: textColor, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+}
+
+function updateChartColors(theme) {
+    const textColor = theme === 'dark' ? '#f8fafc' : '#0f172a';
+    [pipelineChart, distributionChart, ytdChart].forEach(chart => {
+        if (chart) {
+            if (chart.options.scales) {
+                if (chart.options.scales.x) chart.options.scales.x.ticks.color = textColor;
+                if (chart.options.scales.y) chart.options.scales.y.ticks.color = textColor;
+            }
+            if (chart.options.plugins && chart.options.plugins.legend) {
+                chart.options.plugins.legend.labels.color = textColor;
+            }
+            chart.update();
+        }
+    });
+}
+
+// Drag and Drop Logic for Cards
+function initDragAndDrop() {
+    const cards = document.querySelectorAll('.card');
+    const columns = document.querySelectorAll('.grid-column');
+
+    cards.forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', card.id);
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+    });
+
+    columns.forEach(col => {
+        col.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const draggingCard = document.querySelector('.dragging');
+            if (draggingCard) col.appendChild(draggingCard);
+        });
+    });
+}
+
+// Column Resizer Drag Logic
+function initColumnResizers() {
+    const resizer1 = document.getElementById('resizer1');
+    const resizer2 = document.getElementById('resizer2');
+    const col1 = document.getElementById('col1');
+    const col2 = document.getElementById('col2');
+    const col3 = document.getElementById('col3');
+    const container = document.getElementById('dashboardGrid');
+
+    if (!resizer1 || !resizer2) return;
+
+    function makeResizable(resizer, leftCol, rightCol) {
+        let x = 0;
+        let leftWidth = 0;
+
+        const onMouseDown = (e) => {
+            x = e.clientX;
+            leftWidth = leftCol.getBoundingClientRect().width;
+            resizer.classList.add('resizing');
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        };
+
+        const onMouseMove = (e) => {
+            const dx = e.clientX - x;
+            const containerWidth = container.getBoundingClientRect().width;
+            const newLeftWidthPct = ((leftWidth + dx) / containerWidth) * 100;
+
+            if (newLeftWidthPct > 15 && newLeftWidthPct < 65) {
+                leftCol.style.width = `${newLeftWidthPct}%`;
+                leftCol.style.flex = 'none';
+            }
+
+            [pipelineChart, distributionChart, ytdChart].forEach(c => c && c.resize());
+        };
+
+        const onMouseUp = () => {
+            resizer.classList.remove('resizing');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        resizer.addEventListener('mousedown', onMouseDown);
+    }
+
+    makeResizable(resizer1, col1, col2);
+    makeResizable(resizer2, col2, col3);
+}
+    </script>
+</body>
+</html>

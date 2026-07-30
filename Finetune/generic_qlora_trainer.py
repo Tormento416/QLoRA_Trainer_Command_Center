@@ -7,7 +7,6 @@ import yaml
 from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
-    Gemma4ForConditionalGeneration,
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
@@ -83,13 +82,6 @@ class CustomControlCallback(TrainerCallback):
 
             print(f"[Heartbeat {time.strftime('%H:%M:%S')}] Step {state.global_step}/{state.max_steps:,} ({pct_run:.1f}% Run | {pct_4_94m:.3f}% of 4.94M Dataset) | Processed: {records_processed:,}/4,940,000 records | Loss: {loss_val:.4f} | Pace: {sec_per_it:.1f}s/it | Elapsed: {time_str}{vram_str} | Status: RUNNING OK")
 
-        # Periodically clear GPU VRAM cache every 500 steps to prevent degradation over long training runs
-        if state.global_step > 0 and state.global_step % 500 == 0:
-            import gc
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
 
 
 def run_qlora_training(
@@ -141,7 +133,13 @@ def run_qlora_training(
 
     # 2. Check GPU & Quantization & Enable TF32 Tensor Cores
     is_cuda = torch.cuda.is_available()
+    is_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+    is_rocm = is_cuda and torch.version.hip is not None
+
     print(f"[QLoRA] CUDA Available: {is_cuda}")
+    print(f"[QLoRA] ROCm Available: {is_rocm}")
+    print(f"[QLoRA] MPS Available: {is_mps}")
+
     if is_cuda:
         print(f"[QLoRA] GPU: {torch.cuda.get_device_name(0)}")
         torch.backends.cuda.matmul.allow_tf32 = True
@@ -174,21 +172,23 @@ def run_qlora_training(
         tokenizer.chat_template = "{% for message in messages %}{{ message['role'] + ': ' + message['content'] + '\n' }}{% endfor %}"
 
     print("[QLoRA] Loading base model for 4-bit k-bit training...")
-    model_kwargs = {"device_map": {"": 0}} if is_cuda else {"device_map": "cpu", "dtype": torch.float32}
     if is_cuda:
-        model_kwargs["attn_implementation"] = "sdpa"
+        model_kwargs = {"device_map": {"": 0}, "attn_implementation": "sdpa"}
+    elif is_mps:
+        model_kwargs = {"device_map": "mps"}
+    else:
+        model_kwargs = {"device_map": "cpu", "dtype": torch.float32}
+
     if bnb_config:
         model_kwargs["quantization_config"] = bnb_config
 
-    model = Gemma4ForConditionalGeneration.from_pretrained(base_model_path, **model_kwargs)  # was AutoModelForCausalLM
+    model = AutoModelForCausalLM.from_pretrained(base_model_path, **model_kwargs)
 
     if is_cuda:
         model = prepare_model_for_kbit_training(model)
 
     # 4. Set up LoRA Configuration
-    # Gemma 4 E4B-it is multimodal — scope LoRA to text-decoder layers only,
-    # bare "linear"/"q_proj" leaks into vision/audio towers otherwise.
-    target_mods = r".*language_model\.layers\.\d+\.(self_attn\.(q|k|v|o)_proj|mlp\.(gate|up|down)_proj)$"
+    target_mods = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
     lora_config = LoraConfig(
         r=r,
         lora_alpha=lora_alpha,
@@ -273,6 +273,7 @@ def run_qlora_training(
         fp16=use_fp16,
         optim="paged_adamw_8bit" if is_cuda else "adamw_torch",
         report_to="none",
+        neftune_noise_alpha=5.0, # Added for stability
     )
 
     data_collator = DataCollatorForSeq2Seq(

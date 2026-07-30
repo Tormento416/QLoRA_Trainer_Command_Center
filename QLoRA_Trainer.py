@@ -238,11 +238,29 @@ class OutputRedirector(io.TextIOBase):
         pass
 
 
+class SettingsManager:
+    SETTINGS_FILE = 'user_settings.json'
+    
+    @classmethod
+    def load(cls):
+        try:
+            with open(cls.SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+            
+    @classmethod
+    def save(cls, data):
+        settings = cls.load()
+        settings.update(data)
+        with open(cls.SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=4)
+
 class ModernRezSLMApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Rez_SLM Application Engine — Desktop Control Center")
+        self.title("Generic QLoRA Trainer")
         self.geometry("980x740")
         self.minsize(900, 660)
 
@@ -260,21 +278,30 @@ class ModernRezSLMApp(ctk.CTk):
 
         self.show_step_1_start()
 
+        # Footer
+        footer = ctk.CTkLabel(self, text="(Built by A. Sousa/Tormento416)", font=ctk.CTkFont(family="Inter", size=10), text_color="#64748B")
+        footer.pack(side="bottom", pady=5)
+
     def _build_header(self):
         header_frame = ctk.CTkFrame(self, fg_color="#111827", corner_radius=12)
         header_frame.pack(fill="x", side="top", padx=20, pady=(16, 4))
 
-        title_lbl = ctk.CTkLabel(header_frame, text="⚡ Rez_SLM Application Engine", font=ctk.CTkFont(family="Inter", size=18, weight="bold"), text_color="#06B6D4")
+        title_lbl = ctk.CTkLabel(header_frame, text="⚡ Generic QLoRA Trainer", font=ctk.CTkFont(family="Inter", size=18, weight="bold"), text_color="#06B6D4")
         title_lbl.pack(side="left", padx=16, pady=12)
 
         self.gpu_lbl = ctk.CTkLabel(header_frame, text="GPU: Detecting...", font=ctk.CTkFont(family="Inter", size=11, weight="bold"), text_color="#EAB308")
         self.gpu_lbl.pack(side="right", padx=16, pady=12)
 
-        if HAS_TORCH and torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
-            total_vram = VRAMOptimizer.get_available_vram_gb()
-            safe_vram = VRAMOptimizer.get_safe_vram_limit()
-            self.gpu_lbl.configure(text=f"🎮 {gpu_name} ({total_vram} GB Max | {safe_vram} GB Safe Cap)")
+        if HAS_TORCH:
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                total_vram = VRAMOptimizer.get_available_vram_gb()
+                safe_vram = VRAMOptimizer.get_safe_vram_limit()
+                self.gpu_lbl.configure(text=f"🎮 {gpu_name} ({total_vram} GB Max | {safe_vram} GB Safe Cap)")
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                self.gpu_lbl.configure(text="🎮 Apple Silicon (MPS Enabled)")
+            else:
+                self.gpu_lbl.configure(text="💻 CPU Only Mode (Not Recommended)")
 
     def _clear_main_container(self):
         for widget in self.main_container.winfo_children():
@@ -289,12 +316,12 @@ class ModernRezSLMApp(ctk.CTk):
         card = ctk.CTkFrame(self.main_container, fg_color="#111827", corner_radius=14, border_width=1, border_color="#1E293B")
         card.pack(fill="both", expand=True, pady=10)
 
-        welcome_title = ctk.CTkLabel(card, text="Welcome to Rez_SLM Control Center", font=ctk.CTkFont(family="Inter", size=22, weight="bold"), text_color="#F8FAFC")
+        welcome_title = ctk.CTkLabel(card, text="Welcome to Generic QLoRA Trainer", font=ctk.CTkFont(family="Inter", size=22, weight="bold"), text_color="#F8FAFC")
         welcome_title.pack(pady=(40, 10))
 
         welcome_desc = ctk.CTkLabel(
             card,
-            text="Scan your PC and attached drives to discover local SLM/LLM models,\nthen launch high-performance Inference or fine-tuned QLoRA Training.",
+            text="Scan your PC and attached drives to discover local SLM/LLM models,\nthen launch high-performance generic QLoRA fine-tuning.",
             font=ctk.CTkFont(family="Inter", size=13),
             text_color="#94A3B8",
             justify="center"
@@ -333,9 +360,12 @@ class ModernRezSLMApp(ctk.CTk):
 
     def _on_scan_completed(self, models):
         self.discovered_models = models
+        settings = SettingsManager.load()
+        saved_model = settings.get("model_path", "")
+        if saved_model and saved_model not in self.discovered_models:
+            self.discovered_models.insert(0, saved_model)
         if not self.discovered_models:
-            default_path = os.path.abspath("d:/models")
-            self.discovered_models = [default_path]
+            self.discovered_models = [""]
         
         self.show_step_2_select_model()
 
@@ -392,19 +422,6 @@ class ModernRezSLMApp(ctk.CTk):
         btn_row = ctk.CTkFrame(wf_card, fg_color="transparent")
         btn_row.pack(fill="x", padx=20, pady=(0, 20))
 
-        inf_btn = ctk.CTkButton(
-            btn_row,
-            text="💬  Run Local Inference",
-            font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
-            fg_color="#10B981",
-            hover_color="#059669",
-            text_color="#FFFFFF",
-            corner_radius=10,
-            height=44,
-            command=self.show_step_3a_inference
-        )
-        inf_btn.pack(side="left", expand=True, fill="x", padx=(0, 10))
-
         tr_btn = ctk.CTkButton(
             btn_row,
             text="🔥  QLoRA Fine-Tuning",
@@ -416,7 +433,7 @@ class ModernRezSLMApp(ctk.CTk):
             height=44,
             command=self.show_step_3b_training
         )
-        tr_btn.pack(side="right", expand=True, fill="x", padx=(10, 0))
+        tr_btn.pack(side="left", expand=True, fill="x")
 
     def browse_custom_model(self):
         path = ctk.filedialog.askdirectory(title="Select Custom SLM Model Directory")
@@ -679,6 +696,8 @@ class ModernRezSLMApp(ctk.CTk):
         mode_card = ctk.CTkFrame(card, fg_color="#0B0F19", corner_radius=10)
         mode_card.pack(fill="x", padx=16, pady=4)
 
+        self.tr_out_var = ctk.StringVar(value=SettingsManager.load().get("output_dir", "Finetune/output_adapter"))
+
         self.tr_mode_var = ctk.StringVar(value="auto")
 
         rb_auto = ctk.CTkRadioButton(
@@ -931,6 +950,11 @@ class ModernRezSLMApp(ctk.CTk):
             self.tr_progress_lbl.configure(text="Stopping training gracefully...", text_color="#EF4444")
 
     def execute_training_in_process(self):
+        SettingsManager.save({
+            "model_path": self.selected_model_path,
+            "dataset_path": self.tr_dataset_var.get().strip(),
+            "output_dir": self.tr_out_var.get().strip()
+        })
         dataset_path = self.tr_dataset_entry.get().strip()
         output_dir = self.tr_out_entry.get().strip()
         model_path = self.selected_model_path
@@ -987,7 +1011,7 @@ class ModernRezSLMApp(ctk.CTk):
         old_stdout = sys.stdout
         sys.stdout = OutputRedirector(self.tr_log_text)
         try:
-            from Finetune.qlora_trainer import run_qlora_training
+            from Finetune.generic_qlora_trainer import run_qlora_training
             run_qlora_training(
                 model_path=model_path,
                 config_path="config.yaml",
