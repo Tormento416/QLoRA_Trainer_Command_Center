@@ -1,1 +1,0 @@
-[E] [2026-07-24 09:51:20] QLoRA training task-55 failed with CUDA OutOfMemoryError on 12GB GPU with batch_size=6.
