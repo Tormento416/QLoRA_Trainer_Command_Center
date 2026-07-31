@@ -1,6 +1,6 @@
-# Rez_SLM
+# QLoRA Generic Trainer
 
-Resume Writing, Candidate Screening & Fine-Tuning Small Language Model (SLM) Architecture for Local Inference and QLoRA Training.
+Fine-Tuning Small Language Model (SLM) Architecture for Local Inference and QLoRA Training.
 
 ## Project Features
 - **Local SLM Loader**: CUDA acceleration on NVIDIA RTX GPUs with 4-bit `bitsandbytes` quantization.
