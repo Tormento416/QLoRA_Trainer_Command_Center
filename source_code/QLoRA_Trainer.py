@@ -256,6 +256,140 @@ class SettingsManager:
         with open(cls.SETTINGS_FILE, 'w') as f:
             json.dump(settings, f, indent=4)
 
+
+class TrainingEstimator:
+    """Estimates model parameter count, VRAM footprint, dataset record metrics, and fine-tuning duration."""
+
+    @staticmethod
+    def estimate_model_info(model_path_or_id: str) -> dict:
+        params_billions = 2.6
+        vram_4bit_gb = 1.8
+        model_name = os.path.basename(model_path_or_id.rstrip("/\\")) if model_path_or_id else "Base SLM"
+
+        if model_path_or_id and os.path.exists(model_path_or_id) and os.path.isdir(model_path_or_id):
+            cfg_path = os.path.join(model_path_or_id, "config.json")
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                        h = cfg.get("hidden_size") or cfg.get("d_model") or 2048
+                        layers = cfg.get("num_hidden_layers") or cfg.get("n_layer") or 18
+                        vocab = cfg.get("vocab_size") or 256000
+                        approx_params = (12 * layers * (h ** 2) + vocab * h) / 1e9
+                        if approx_params > 0.3:
+                            params_billions = round(approx_params, 2)
+                except Exception:
+                    pass
+
+        name_lower = (model_path_or_id or "").lower()
+        if "7b" in name_lower or "8b" in name_lower:
+            params_billions = 7.5
+        elif "13b" in name_lower or "14b" in name_lower:
+            params_billions = 13.5
+        elif "1b" in name_lower:
+            params_billions = 1.1
+        elif "3b" in name_lower or "4b" in name_lower:
+            params_billions = 3.8
+        elif "2b" in name_lower or "e4b" in name_lower or "gemma" in name_lower:
+            params_billions = 2.6
+
+        vram_4bit_gb = round(0.65 * params_billions + 0.5, 1)
+
+        return {
+            "model_name": model_name,
+            "params_b": params_billions,
+            "params_fmt": f"{params_billions:.1f}B Parameters",
+            "vram_4bit_fmt": f"~{vram_4bit_gb:.1f} GB 4-bit VRAM"
+        }
+
+    @staticmethod
+    def estimate_dataset_info(dataset_path: str) -> dict:
+        total_records = 0
+        size_bytes = 0
+        if dataset_path and os.path.exists(dataset_path):
+            try:
+                size_bytes = os.path.getsize(dataset_path)
+                with open(dataset_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for _ in f:
+                        total_records += 1
+            except Exception:
+                pass
+
+        if size_bytes >= 1024 ** 3:
+            size_fmt = f"{size_bytes / (1024 ** 3):.2f} GB"
+        elif size_bytes >= 1024 ** 2:
+            size_fmt = f"{size_bytes / (1024 ** 2):.1f} MB"
+        else:
+            size_fmt = f"{size_bytes / 1024:.1f} KB"
+
+        return {
+            "total_records": total_records,
+            "total_records_fmt": f"{total_records:,} Records",
+            "file_size_fmt": size_fmt
+        }
+
+    @classmethod
+    def estimate_training_time(
+        cls,
+        model_path_or_id: str,
+        dataset_path: str,
+        batch_size: int = 4,
+        grad_accum: int = 2,
+        max_steps: int = 4500,
+        sub_sample: int = 45000,
+        max_length: int = 384,
+        is_cuda: bool = True
+    ) -> dict:
+        model_info = cls.estimate_model_info(model_path_or_id)
+        dataset_info = cls.estimate_dataset_info(dataset_path)
+
+        eff_batch = max(1, batch_size * (grad_accum if grad_accum > 0 else 2))
+        total_recs = dataset_info["total_records"]
+        target_recs = min(sub_sample, total_recs) if (sub_sample > 0 and total_recs > 0) else total_recs
+        if target_recs <= 0:
+            target_recs = 45000
+
+        steps_from_dataset = max(1, target_recs // eff_batch)
+        actual_steps = min(max_steps, steps_from_dataset) if max_steps > 0 else steps_from_dataset
+
+        params_b = model_info["params_b"]
+        length_factor = (max_length / 384.0) ** 1.2
+        
+        if is_cuda:
+            base_sec_per_step = 0.35 + (params_b * 0.12)
+        else:
+            base_sec_per_step = 3.5 + (params_b * 1.5)
+
+        estimated_sec_per_step = round(base_sec_per_step * length_factor * (batch_size ** 0.3), 2)
+        total_sec = int(actual_steps * estimated_sec_per_step)
+
+        mins, secs = divmod(total_sec, 60)
+        hrs, mins = divmod(mins, 60)
+
+        if hrs > 0:
+            time_fmt = f"~{hrs}h {mins}m"
+        elif mins > 0:
+            time_fmt = f"~{mins}m {secs}s"
+        else:
+            time_fmt = f"~{secs}s"
+
+        return {
+            "model_info": model_info,
+            "dataset_info": dataset_info,
+            "actual_steps": actual_steps,
+            "actual_steps_fmt": f"{actual_steps:,} Steps",
+            "effective_batch_size": eff_batch,
+            "sec_per_step": estimated_sec_per_step,
+            "estimated_time_fmt": time_fmt,
+            "summary_card": (
+                f"[ESTIMATED TRAINING PROFILE]\n"
+                f"• Model: {model_info['model_name']} ({model_info['params_fmt']} | {model_info['vram_4bit_fmt']})\n"
+                f"• Dataset: {dataset_info['total_records_fmt']} ({dataset_info['file_size_fmt']})\n"
+                f"• Steps & Batch: {actual_steps:,} Steps (Eff. Batch: {eff_batch}, Seq Len: {max_length})\n"
+                f"• Estimated Time: {time_fmt} (Pace: ~{estimated_sec_per_step}s/step)"
+            )
+        }
+
 class ModernRezSLMApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -804,6 +938,19 @@ class ModernRezSLMApp(ctk.CTk):
         self.apply_tr_vram_rec()
         self.toggle_tr_mode_inputs()
 
+        # 3.5 Live Training Estimator Resource Card
+        self.estimation_card_frame = ctk.CTkFrame(card, fg_color="#062038", corner_radius=10, border_width=1, border_color="#0284C7")
+        self.estimation_card_frame.pack(fill="x", padx=16, pady=4)
+
+        self.estimation_lbl = ctk.CTkLabel(
+            self.estimation_card_frame,
+            text="📊 ESTIMATED RESOURCE & TIME FOOTPRINT:\nCalculating estimate based on model & dataset parameters...",
+            font=ctk.CTkFont(family="Consolas", size=11, weight="bold"),
+            text_color="#38BDF8",
+            justify="left"
+        )
+        self.estimation_lbl.pack(anchor="w", padx=14, pady=10)
+
         # 4. PRIMARY CONTROLS & DUAL PROGRESS BARS (RUN % & 4.94M DATASET %)
         ctrl_card = ctk.CTkFrame(card, fg_color="#0F172A", corner_radius=10, border_width=1, border_color="#334155")
         ctrl_card.pack(fill="x", padx=16, pady=4)
@@ -911,6 +1058,54 @@ class ModernRezSLMApp(ctk.CTk):
             text=f"Batch {user_batch} | Grad Accum {grad_accum} (Eff Batch {eff_batch}) | Context {rec['max_length']} | Steps {steps_str} [{tag}]",
             text_color=color_val
         )
+        self.recalculate_training_estimate()
+
+    def recalculate_training_estimate(self, *args):
+        if not hasattr(self, "estimation_lbl") or not self.estimation_lbl.winfo_exists():
+            return
+        
+        model_path = getattr(self, "selected_model_path", "") or "d:/models"
+        dataset_path = self.tr_dataset_entry.get().strip() if hasattr(self, "tr_dataset_entry") else "Finetune/training_data.jsonl"
+        
+        try:
+            batch_size = int(self.tr_batch_var.get())
+        except (ValueError, AttributeError):
+            batch_size = 4
+
+        try:
+            grad_accum = int(self.tr_grad_accum_var.get()) if hasattr(self, 'tr_grad_accum_var') else 0
+        except (ValueError, AttributeError):
+            grad_accum = 0
+
+        try:
+            max_steps = int(self.tr_steps_var.get())
+        except (ValueError, AttributeError):
+            max_steps = 4500
+
+        is_cuda = HAS_TORCH and torch.cuda.is_available()
+
+        def _async_calc():
+            est = TrainingEstimator.estimate_training_time(
+                model_path_or_id=model_path,
+                dataset_path=dataset_path,
+                batch_size=batch_size,
+                grad_accum=grad_accum,
+                max_steps=max_steps,
+                sub_sample=45000,
+                max_length=384,
+                is_cuda=is_cuda
+            )
+            card_text = (
+                f"📊 ESTIMATED RESOURCE & TIME FOOTPRINT:\n"
+                f"• Model: {est['model_info']['model_name']} ({est['model_info']['params_fmt']} | {est['model_info']['vram_4bit_fmt']})\n"
+                f"• Dataset: {est['dataset_info']['total_records_fmt']} ({est['dataset_info']['file_size_fmt']})\n"
+                f"• Steps & Batch: {est['actual_steps_fmt']} (Eff. Batch: {est['effective_batch_size']})\n"
+                f"• Estimated Time: {est['estimated_time_fmt']} (Pace: ~{est['sec_per_step']}s/step)"
+            )
+            if hasattr(self, "estimation_lbl") and self.estimation_lbl.winfo_exists():
+                self.after(0, lambda: self.estimation_lbl.configure(text=card_text))
+
+        threading.Thread(target=_async_calc, daemon=True).start()
 
     def apply_tr_vram_rec(self):
         try:
@@ -928,6 +1123,7 @@ class ModernRezSLMApp(ctk.CTk):
         if p:
             self.tr_dataset_entry.delete(0, "end")
             self.tr_dataset_entry.insert(0, os.path.abspath(p))
+            self.recalculate_training_estimate()
 
     def browse_tr_out_dir(self):
         p = ctk.filedialog.askdirectory(title="Select Output Adapter Folder")
